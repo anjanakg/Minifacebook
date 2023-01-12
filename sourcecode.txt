@@ -1,0 +1,1617 @@
+# APPENDIX
+
+## /index.php 
+
+<?php
+require "database.php";
+    $lifetime = 15 * 60; //15 minutes
+    $path = "/"; 
+    $domain = "secad-team5.minifacebook.com"; 
+    $secure = TRUE;
+    $httponly = TRUE;
+    session_set_cookie_params($lifetime, $path, $domain, $secure, $httponly);
+    session_start();
+
+    $mysqli = new mysqli('localhost','team5','team5','secad_team5');
+      if($mysqli->connect_error){
+         printf("database connection failed: %s\n", $mysqli->connect_error);
+         exit();
+      }
+    if (isset($_POST["username"]) and isset($_POST["password"]) ){
+      if (empty($_POST["username"]) OR empty($_POST["password"])) {
+        echo "<script>alert('INPUT MISSING');</script>";
+        session_destroy();
+        header("Refresh:0;url=form.php");
+        die;
+      } 
+
+      $username = sanitize_input($_POST["username"]);
+      if (!preg_match("/[A-Za-z]{3,20}/",$username)) {
+        regeXCheckFail($username);
+      }
+
+      $password=sanitize_input($_POST["password"]);
+      
+      if (!preg_match("/^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&])[\w!@#$%^&]{8,}$/",$password)) {
+        regeXCheckFail($password);
+      }
+
+
+      if(securechecklogin($_POST["username"],$_POST["password"])){
+        $_SESSION["logged"] = TRUE;
+        $_SESSION["browser"] = $_SERVER["HTTP_USER_AGENT"];
+
+        //if(!isset($_SESSION["username"]))
+          $_SESSION["username"] = $username;
+
+      }else{
+        echo "<script>alert('Invalid username/password.');</script>";
+        session_destroy();
+        header("Refresh:0; url=form.php");
+		    die(); 
+	    }
+    }
+
+    if (!isset($_SESSION["logged"]) or $_SESSION["logged"] !=TRUE ){
+      echo "<script>alert('Please login first.');</script>";
+      session_destroy();
+      header("Refresh:0; url=form.php");
+      die(); 
+    }
+
+    if ($_SESSION["browser"] != $_SERVER["HTTP_USER_AGENT"]){
+      echo "<script>alert('Session hijacking is detected!');</script>";
+      session_destroy();
+      header("Refresh:0; url=form.php");
+      die(); 
+    }
+    if (isset($_POST['id'])) {
+     /*$csrftoken = $_POST["nocsrf"];
+    if(!isset($csrftoken) or
+     ($csrftoken!=$_SESSION['nocsrf'])) {
+    echo "A CSRF attack detected ";
+    die();
+    }*/
+    delPost((int)($_POST["id"]), $_SESSION["username"]);
+   }
+
+    function regeXCheckFail($input){
+      echo $input;
+      echo "<script>alert('INPUT data isnt in correct format.Redirecting now.". $input."');</script>";
+      //header("Refresh:0;url=form.php");
+     // die;
+    }
+
+?>
+<h2> Welcome <?php echo htmlentities($_SESSION['username']); ?> !</h2> 
+<a href="changepasswordform.php">change password</a>
+<a href="addpostform.php">add post</a>
+<a href="logout.php">logout</a>
+<div class="content">  
+ <?php
+   echo renderAllPosts();
+ ?>
+</div>
+<?php
+
+  function securechecklogin($username, $password){
+    global $mysqli;
+    $flag=1;
+    $prepared_sql = "SELECT * FROM users WHERE username= ? AND password=password(?) AND active=?;";
+    if(!$stmt = $mysqli->prepare($prepared_sql)){
+       echo "Prepared Statement Error";
+    }
+    $stmt->bind_param("sss", $username,$password,$flag);
+    if(!$stmt->execute())  echo "Execute Error";
+    if(!$stmt->store_result()) echo "Store_result error";
+    $result = $stmt;
+    if($result->num_rows ==1)
+      return TRUE;
+    return FALSE;
+  }
+  function renderAllPosts(){
+    global $mysqli;
+    $prepared_sql = "SELECT post_id,post_msg,username FROM posts";
+    if(!$stmt = $mysqli->prepare($prepared_sql)){
+       echo "Prepared Statement Error";
+    }
+    if(!$stmt->execute())  echo "Execute Error";
+    $post_id = NULL;
+    $post_msg = NULL;
+    $username = NULL;
+    if(!$stmt->bind_result($post_id,$post_msg,$username)) echo "Store_result error";
+    while ($stmt->fetch()) {
+        echo "<style> .wrap-flex { display:flex; } </style> <div class = \"wrap-flex\"> Post:";
+        echo  $post_msg;
+        echo "<form method=\"GET\" action=\"post.php?id=\"?\">" ;
+        echo "<input type=\"hidden\" name=\"id\" value=\""; 
+        echo  $post_id;
+        echo "\"/ >";
+        echo " <button class=\button\ type=\submit\>
+                  View
+                </button>
+      </form> ";
+        
+        if($username == $_SESSION["username"]){
+          echo "<form method=\"GET\" action=\"editform.php?id=\"?\">" ;
+        echo "<input type=\"hidden\" name=\"id\" value=\""; 
+        echo  $post_id;
+        echo "\"/ >";
+        echo " <button class=\button\ type=\submit\>
+                  Edit
+                </button>
+      </form> ";
+        echo "<form method=\"GET\" action=\"del.php?id=\"?\">" ;
+        echo "<input type=\"hidden\" name=\"id\" value=\""; 
+        echo  $post_id;
+        echo "\"/ >";
+        echo " <button class=\button\ type=\submit\>
+                  Delete
+                </button>
+      </form> ";
+        }
+        echo "</div>";
+        
+      }
+  }
+
+?>
+
+## /session_auth.php
+
+<?php
+    $lifetime = 15 * 60; //15 minutes
+    $path = "/";
+    $domain = "secad-team5.minifacebook.com"; 
+    $secure = TRUE;
+    $httponly = TRUE;
+    session_set_cookie_params($lifetime, $path, $domain, $secure, $httponly);
+    session_start();
+
+    $mysqli = new mysqli('localhost','team5','team5','secad_team5');   
+    if($mysqli ->connect_errno){
+        printf("Database connection failed: %s\n", $mysqli ->connect_error);
+        exit();
+    }
+
+    if(isset($_POST["username"]) and isset($_POST["password"])){   
+        if (secureCheckLogin($_POST["username"],$_POST["password"])) {
+            $_SESSION["logged"] = TRUE;
+            $_SESSION["username"] = $_POST["username"];
+            $_SESSION["browser"] = $_SERVER["HTTP_USER_AGENT"];
+                
+        }else{
+            echo "<script>alert('Invalid username/password');</script>";
+            session_destroy();
+            header("Refresh:0; url=form.php");
+            die();
+        }
+    }
+
+    //check the session
+    if( !isset($_SESSION["logged"]) or $_SESSION["logged"] != TRUE){
+        echo "<script>alert('You have to login first!');</script>";
+        session_destroy();
+        header("Refresh:0; url=form.php");
+        die();
+    }
+
+    if( $_SESSION["browser"] != $_SERVER["HTTP_USER_AGENT"]){
+        //it is a session hijacking attack since it comes from a different browser
+        echo "<script>alert('Session hijacking attack is detected!');</script>";
+        //echo $_SESSION["browser"];
+        //echo " , ";
+        //echo $_SERVER["HTTP_USER_AGENT"];
+        session_destroy();
+        header("Refresh:0; url=form.php");
+        die();
+    }
+?>
+
+## /registrationform.php
+
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="utf-8">
+  <title>User Registration Form</title>
+  <link rel="stylesheet" href="style.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+  <body>
+    <div class="container">
+        <h2>Register for a new Account</h2>
+
+<?php
+  //some code here
+  echo "Current time: " . date("Y-m-d h:i:sa")
+?>
+        <form action="addnewuser.php" method="POST" class="form login">
+            <div class="user-details">
+                <div class="input-box">
+                  <span class="details">Username</span>
+                  <input type="text" class="text_field" name="username" required
+                    pattern="[A-Za-z]{3,20}"
+                    title="Please enter a valid username" 
+                    placeholder="Your username"
+                    onchange="this.setCustomValidity(this.validity.patternMismatch?this.title: '');" /> 
+                    <br>
+                </div>
+                <div class="input-box">
+                  <span class="details">Email</span>
+                  <input type="email" class="text_field" name="email" required
+                  pattern="^[\w.-]+@[\w-]+(.[\w-]+)*$"
+                  title="Please enter a valid email" 
+                  placeholder="Your email"
+                  onchange="this.setCustomValidity(this.validity.patternMismatch?this.title: '');" /> 
+                  <br>
+                </div>
+                <div class="input-box">
+                  <span class="details">Password</span>
+                  <input type="password" class="text_field" name="password" required
+                  pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&])[\w!@#$%^&]{8,}$"
+                  placeholder="Your password"
+                  title="Password must have at least 8 characters with 1 special symbol !@#$%^& 1 number, 1 lowercase, and 1 UPPERCASE"
+                  onchange="this.setCustomValidity(this.validity.patternMismatch?this.title: ''); form.repassword.pattern =this.value;"/> 
+                  <br>
+                  </div>
+                <div class="input-box">
+                  <span class="details">Retype Password</span>
+                  <input type="password" class="text_field" name="repassword"
+                  placeholder="Retype your password" required
+                  title="Password does not match"
+                  onchange="this.setCustomValidity(this.validity.patternMismatch?this.title: '');"/> 
+                  <br>
+                </div>
+                <div class="input-box">
+                  <span class="details">First Name</span>
+                  <input type="text" class="text_field" name="fname" required pattern="[A-Za-z]{3,20}" 
+                  placeholder="Your First Name"
+                  title="Please enter only alphabets"
+                  onchange="this.setCustomValidity(this.validity.patternMismatch?this.title: '');" /> 
+                  <br>
+                  </div>
+                <div class="input-box">
+                  <span class="details">Last Name</span>
+                  <input type="text" class="text_field" name="lname" required pattern="[A-Za-z]{3,20}"
+                  placeholder="Your Last Name" 
+                  title="Please enter only alphabets"
+                  onchange="this.setCustomValidity(this.validity.patternMismatch?this.title: '');" /> 
+                  <br>
+                </div>
+                <div class="input-box">
+                  <span class="details">Phone Number</span>
+                  <input type="text" class="text_field" name="phonenumber" pattern="[0-9]{3}-[0-9]{3}-[0-9]{4}" 
+                  placeholder="000-000-0000"
+                  title="Please enter your phone number" 
+                  onchange="this.setCustomValidity(this.validity.patternMismatch?this.title: '');" /> 
+                  <br>
+                </div>
+                <div class="input-box">
+                  <span class="details">Date of Birth</span>
+                  <input type="date" name="DOB" max="2022-01-01" required />
+                  <br> 
+                </div>
+                <div class="input-box">
+                   <span class="details">Gender</span>
+                  <select id="gender" name="gender">
+                    <option disabled selected>Select gender</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Others</option>
+                  </select>
+                  <br>
+                </div>
+            </div>
+              <div class="button">
+                <input type = "submit" value="Register">
+              </div>
+              <div class="text">
+                <h3>Already have an account?<a href="form.php">Login here</a></h3>
+              </div>
+        </form>
+    </div>
+  </body>
+</html>
+
+## /form.php
+
+<!DOCTYPE html>
+  <html lang="en" dir="ltr">
+  <?php
+    session_start();
+    session_destroy();
+  ?>
+  <html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Login page - SecAD</title>
+    <link rel="stylesheet" href="style1.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  </head>
+  <body>
+    <div class="wrapper">
+    <div class="title">User Login</div>
+    <div class="time">
+      <?php
+        echo "Current time: " . date("Y-m-d h:i:sa")
+      ?>
+    </div>
+    <form action="index.php" method="POST" class="form login">
+      <div class="field">   
+        <input type="text" class="text_field" name="username" required
+        pattern="[A-Za-z]{3,20}"
+        title="Please enter a valid username" 
+        placeholder="Your username"
+        onchange="this.setCustomValidity(this.validity.patternMismatch?this.title: '');" /> 
+        <br>      
+      </div>
+      <div class="field">
+        <input type="password" class="text_field" name="password" required
+        pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&])[\w!@#$%^&]{8,}$"
+        placeholder="Your password"
+        title="Password needs at least 8 characters with 1 special symbol !@#$%^& 1 number, 1 lowercase, and 1 UPPERCASE"
+        onchange="this.setCustomValidity(this.validity.patternMismatch?this.title: '');"/> 
+        <br>
+      </div>
+      <div class="field">
+        <input type="submit" value="Login">
+      </div>
+       
+      <div class="signup-link">new user? <a href="registrationform.php">Create an Account Here!</a>
+      <div class="link">superuser? <a href="admin/form.php">Login Here!</a>
+      </div>
+    </form>
+    </div>
+
+  </body>
+</html>
+
+## /database.php
+
+<?php
+    $mysqli = new mysqli('localhost','team5','team5','secad_team5');
+    if($mysqli->connect_errno){
+         printf("Database connection failed: %s\n", $mysqli->connect_error);
+         exit();
+    }
+
+    function changepassword($username, $newpassword){
+        global $mysqli;
+        $prepared_sql = "UPDATE users SET password=password(?) WHERE username= ?;";
+        //echo "DEBUG>prepared_sql= $prepared_sql\n";
+
+        if(!$stmt = $mysqli ->prepare($prepared_sql)) return FALSE;
+        $stmt->bind_param("ss",$newpassword,$username);
+        if(!$stmt->execute()) return FALSE;
+        return TRUE;
+    }
+
+    function addUser($username, $email, $password, $fname, $lname, $phonenumber, $DOB, $gender) {
+
+        global $mysqli;
+        $active=1;
+        #$prepared_sql = "INSERT INTO users(username,email,password,fname,lname,phonenumber,DOB,gender) VALUES(?,?, password(?),?,?,?,?,?);";
+        $prepared_sql = "INSERT INTO users VALUE (?,?,password(?),?,?,?,?,?,current_date,?);";
+        //echo "DEBUG>prepared_sql= $prepared_sql\n";
+
+        if(!$stmt = $mysqli ->prepare($prepared_sql)) {
+            echo "Prepared Statement Error";
+            return FALSE;
+        }
+        $stmt->bind_param("sssssssss", $username,$email,$password,$fname,$lname,$phonenumber,$DOB,$gender,$active);
+        if(!$stmt->execute()) {
+            echo "Execute Error";
+            return FALSE;
+        }
+        return TRUE;
+        
+     } 
+     function renderPost($id)
+     {
+        global $mysqli;
+        $prepared_sql = "SELECT post_title,post_msg,username,date_posted FROM posts WHERE post_id=?;";
+        if(!$stmt = $mysqli ->prepare($prepared_sql)) {
+            echo "Prepared Statement Error";
+        }
+        $stmt->bind_param("s",$id);
+        if(!$stmt->execute()) {
+            echo "Execute Error";
+        }
+        $posttitle= NULL;
+        $postmsg= NULL;
+        $userID= NULL;
+        $postDate= NULL;
+        if(!$stmt->bind_result($posttitle,$postmsg,$userID,$postDate)) echo "Store_result error";
+        //$str = "";
+        //$str .= "<h1>" . $postmsg ."</h1> \n <h2>by:".getUser($userID)."</h2>";
+        //return $str;
+        $stmt->fetch();
+        echo "<h1>";
+        echo $posttitle;
+        echo "</h1> \n <h2>by:" ;
+        //echo getUser($userID);
+        echo "on: ";
+        echo $postDate;
+        echo "</h2> \n";
+        echo $postmsg;
+
+     }
+     function getPost($id){
+
+    global $mysqli;
+        $prepared_sql = "SELECT post_title,post_msg,username,date_posted FROM posts WHERE post_id=?;";
+        if(!$stmt = $mysqli ->prepare($prepared_sql)) {
+            echo "Prepared Statement Error";
+        }
+        $stmt->bind_param("s",$id);
+        if(!$stmt->execute()) {
+            echo "Execute Error";
+        }
+        $posttitle= NULL;
+        $postmsg= NULL;
+        $userID= NULL;
+        $postDate= NULL;
+        if(!$stmt->bind_result($posttitle,$postmsg,$userID,$postDate)) echo "Store_result error";
+        $stmt->fetch();
+        return array($posttitle,$postmsg,$userID,$postDate);
+     }
+
+     function getUser($id)
+     {
+        global $mysqli;
+        $prepared_sql = "SELECT username FROM users WHERE user_id=?;";
+        if(!$stmt = $mysqli ->prepare($prepared_sql)) {
+            echo "Prepared Statement Error";
+        }
+        $stmt->bind_param("s",$id);
+        if(!$stmt->execute()) {
+            echo "Execute Error";
+        }
+        $username= NULL;
+        if(!$stmt->bind_result($username)) {
+            echo "Store_result error";
+        }
+        return $username;
+     }
+    function addComment($id,$author, $text) {
+        global $mysqli;
+    $prepared_sql  = "INSERT INTO comments VALUE (default,?,?,?,current_date);";
+        //$prepared_sql  = "INSERT INTO comments(post_id,post_msg,username,date_posted) VALUE (?,?,?,current_date);";
+
+    if(!$stmt = $mysqli ->prepare($prepared_sql)) {
+            echo "Prepared Statement Error";
+            return FALSE;
+        }
+        $stmt->bind_param("sss", $id,$text,$author);
+        if(!$stmt->execute()) {
+            echo "Execute Error";
+            return FALSE;
+        }
+        return TRUE;
+
+  } 
+function addPost($title,$author, $text) {
+        global $mysqli;
+    $prepared_sql  = "INSERT INTO posts VALUE (default,?,?,?,current_date);";
+
+    if(!$stmt = $mysqli ->prepare($prepared_sql)) {
+            echo "Prepared Statement Error";
+            return FALSE;
+        }
+        $stmt->bind_param("sss", $title,$text,$author);
+        if(!$stmt->execute()) {
+            echo "Execute Error";
+            return FALSE;
+        }
+        return TRUE;
+
+  } 
+  # This function works and sanitizes input into the database
+    function sanitize_input($data){
+      $data = trim($data);
+      $data = stripslashes($data);
+      $data = htmlspecialchars($data);
+      return $data;
+    }
+    function editPost($id,$title,$text){
+        global $mysqli;
+    list($posttitle,$postmsg,$userID,$postDate) = getPost($id);
+    if($userID != $_SESSION["username"]){
+      echo "<script>alert('dont have permission');</script>";
+      header("Refresh:0; url=index.php");
+      die();
+    }
+    $prepared_sql = "UPDATE  posts SET post_title = ?, post_msg = ? WHERE post_id=?;";
+
+        if(!$stmt = $mysqli ->prepare($prepared_sql)) {
+            echo "Prepared Statement Error";
+        }
+        $stmt->bind_param("sss",$title, $text,$id);
+        if(!$stmt->execute()) {
+            echo "Execute Error";
+                    return FALSE;
+        }
+        return TRUE;
+
+    }
+    function delPost($id,$user){
+    global $mysqli;
+    list($posttitle,$postmsg,$userID,$postDate) = getPost($id);
+    if($userID != $user){
+      echo "<script>alert('dont have permission');</script>";
+      header("Refresh:0; url=index.php");
+      die();
+    }
+    $prepared_sql = "DELETE FROM posts WHERE post_id=?;";
+
+        if(!$stmt = $mysqli ->prepare($prepared_sql)) {
+            echo "Prepared Statement Error";
+        }
+        $stmt->bind_param("s",$id);
+        if(!$stmt->execute()) {
+            echo "Execute Error";
+        }
+    $prepared_sql = "DELETE FROM comments WHERE post_id = ?;";
+        if(!$stmt = $mysqli ->prepare($prepared_sql)) {
+            echo "Prepared Statement Error";
+        }
+        $stmt->bind_param("s",$id);
+        if(!$stmt->execute()) {
+            echo "Execute Error";
+        }
+  }
+  function renderAllComments($id){
+    global $mysqli;
+    $prepared_sql = "SELECT comment_msg,username FROM comments WHERE post_id= ?;";
+    if(!$stmt = $mysqli->prepare($prepared_sql)){
+       echo "Prepared Statement Error";
+    }
+    $stmt->bind_param("s",$id);
+    if(!$stmt->execute())  echo "Execute Error";
+    $comment_msg = NULL;
+    $username = NULL;
+    if(!$stmt->bind_result($comment_msg,$username)) echo "Store_result error";
+    while ($stmt->fetch()) {
+        ?>
+        <div class="comment"> 
+        <h4> "User: <?php echo $username;?> Comment: <?php echo $comment_msg;?></h4>
+        <div>
+        <?php
+      }
+  }
+    
+?>
+
+## /logout.php
+
+<?php
+	session_start();
+	session_destroy();
+?>
+<p> You are logout! </p>
+
+<a href="form.php">Login again</a>
+
+## /addnewuser.php
+
+<?php
+  require 'database.php';
+  #require 'session_auth.php'; commented this out cause anyone should be able to register
+
+  if ($_SERVER["REQUEST_METHOD"] == "POST") {
+
+  	  if (empty($_POST["username"]) OR empty($_POST["email"]) OR empty($_POST["password"]) OR empty($_POST["fname"]) OR empty($_POST["lname"]) OR empty($_POST["phonenumber"]) OR empty($_POST["DOB"]) OR empty($_POST["gender"])) {
+
+  		echo "<script>alert('INPUT MISSING');</script>";
+		header("Refresh:0;url=registrationform.php");
+		die;
+    }
+
+	$username = sanitize_input($_POST["username"]);
+	if (!preg_match("/[A-Za-z]{3,20}/",$username)) {
+      regeXCheckFail();
+    }
+
+	$email = sanitize_input($_POST["email"]);
+		if (!preg_match("/^[\w.-]+@[\w-]+(.[\w-]+)*$/",$email)) {
+      regeXCheckFail();
+    }
+
+	$password = sanitize_input($_POST["password"]);
+
+	if (!preg_match("/^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&])[\w!@#$%^&]{8,}$/",$password)) {
+      regeXCheckFail();
+    }
+	
+	$fname = sanitize_input($_POST["fname"]);
+	if (!preg_match("/[A-Za-z]{3,20}/",$fname)) {
+      regeXCheckFail();
+    }	
+
+    $lname = sanitize_input($_POST["lname"]);
+    if (!preg_match("/[A-Za-z]{3,20}/",$lname)) {
+      regeXCheckFail();
+    }	
+
+    $phonenumber = sanitize_input($_POST["phonenumber"]);
+    if (!preg_match("/^[0-9]{3}-[0-9]{3}-[0-9]{4}$/", $phonenumber)) {
+   	  regeXCheckFail();
+    }
+
+    $DOB = sanitize_input($_POST["DOB"]);
+	
+	$gender = sanitize_input($_POST["gender"]);		
+
+	if(addUser($username,$email,$password,$fname,$lname,$phonenumber,$DOB,$gender)){
+    echo "<script>alert('User account created successfully');</script>";
+      header("Refresh:0;url=form.php");
+    die;
+	}else{
+    echo "<script>alert('Error:Cannot create account.');</script>";
+      header("Refresh:0;url=registrationform.php");
+    die;
+	}
+	}else{
+  	  	echo "<script>alert('Bad Request');</script>";
+		header("Refresh:0;url=registrationform.php");
+		die;
+
+  } 
+	
+?>
+
+<a href="form.php">Home</a> 
+
+## /changepassword.php
+
+<?php
+	require "session_auth.php";
+	require 'database.php';
+
+	$username= $_SESSION["username"]; //$_REQUEST["username"];
+	//$newpassword = $_POST["newpassword"];
+	$nocsrftoken = $_POST["nocsrftoken"]; 
+
+	if(!isset($nocsrftoken) or ($nocsrftoken!=$_SESSION['nocsrftoken'])){
+		echo "<script>alert('Cross-site request forgery is detected');</script>";
+		header("Refresh:0; url=logout.php");
+		die();
+	}
+
+	if (isset($_SESSION["username"]) AND isset($_POST["newpassword"])) {
+		if (empty($_SESSION["username"]) OR empty($_POST["newpassword"])){
+			echo "<script>alert('INPUT MISSING');</script>";
+			header("Refresh:0;url=logout.php");
+			die;
+		}
+
+		$username = sanitize_input($_SESSION["username"]);
+	   
+		$newpassword=sanitize_input($_POST["newpassword"]);
+		if (!preg_match("/^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&])[\w!@#$%^&]{8,}$/",$newpassword)) {
+	  			regeXCheckFail();
+		}
+
+		//echo "DEBUG:changepassword.php->Got: username=$username:newpassword=$newpassword\n";
+    	if (changepassword($username,$newpassword)) {
+    		echo "<h4>The new password has been set.</h4>";
+       	}else{
+       		echo "<h4>Error: Cannot change the password.</h4>";
+        }
+	}else{
+		echo "No provided username/password to change.";
+		exit();
+	}
+
+	function regeXCheckFail(){
+	  echo "<script>alert('Password  isnt in correct format.Redirecting now.');</script>";
+	  header("Refresh:0;url=changepasswordform.php");
+	  die;
+	}
+
+
+?>
+<a href="index.php">Home</a> | <a href="logout.php">Logout</a>
+
+## /changepasswordform.php
+
+<?php
+  require "session_auth.php";
+  $rand=bin2hex(openssl_random_pseudo_bytes(16));
+  $_SESSION["nocsrftoken"] = $rand;
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Change Password</title>
+</head>
+<body>
+      	<h1>Change Password</h1>
+<?php
+
+  echo "Current time: " . date("Y-m-d h:i:sa")
+?>
+          <form action="changepassword.php" method="POST" class="form login">
+                Username:<!--input type="text" class="text_field" name="username" /--> 
+                <?php echo htmlentities($_SESSION["username"]); ?>
+                <br>
+
+                New Password: <input type="password" class="text_field" name="newpassword" required
+                pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&])[\w!@#$%^&]{8,}$"
+                placeholder="Your password"
+                title="Password must have at least 8 characters with 1 special symbol !@#$%^& 1 number, 1 lowercase, and 1 UPPERCASE"
+                onchange="this.setCustomValidity(this.validity.patternMismatch?this.title: ''); form.repassword.pattern =this.value;"/>
+                 <br>
+
+                Retype Password: <input type="password" class="text_field" name="repassword"
+                placeholder="Retype your password" required
+                title="Password does not match"
+                onchange="this.setCustomValidity(this.validity.patternMismatch?this.title: '');"/>
+                <br>
+
+                <button class="button" type="submit">
+                  Change_password
+                </button>
+
+                <input type="hidden" name="nocsrftoken" value="<?php echo $rand; ?>" />
+
+          </form>
+
+          <a href="index.php">Home Page</a>
+
+</body>
+</html>
+
+## /addpost.php
+
+<?php
+  require "session_auth.php";
+  require 'database.php';
+
+  $username= $_SESSION["username"]; //$_REQUEST["username"];
+  //$newpassword = $_POST["newpassword"];
+  $nocsrftoken = $_POST["nocsrftoken"]; 
+
+  if(!isset($nocsrftoken) or ($nocsrftoken!=$_SESSION['nocsrftoken'])){
+    echo "<script>alert('Cross-site request forgery is detected');</script>";
+    header("Refresh:0; url=logout.php");
+    die();
+  }
+
+  if (isset($_SESSION["username"]) AND isset($_POST["title"]) AND isset($_POST["message"])) {
+    if (empty($_SESSION["username"]) OR empty($_POST["title"]) OR empty($_POST["message"])){
+      echo "<script>alert('INPUT MISSING');</script>";
+      header("Refresh:0;url=addpostform.php");
+      die;
+    }
+
+    $username = sanitize_input($_SESSION["username"]);
+     
+    $title=sanitize_input($_POST["title"]);
+    $message=sanitize_input($_POST["message"]);
+
+    //echo "DEBUG:changepassword.php->Got: username=$username:newpassword=$newpassword\n";
+      if (addPost($title,$username,$message)) {
+        echo "<h4>New Post Created.</h4>";
+        }else{
+          echo "<h4>Error: Failure to Create Post.</h4>";
+        }
+  }else{
+    echo "No provided title amd message to post.";
+    exit();
+  }
+
+?>
+<a href="index.php">Home</a> | <a href="logout.php">Logout</a>
+
+## /addpostform.php
+
+<?php
+  require "session_auth.php";
+  $rand=bin2hex(openssl_random_pseudo_bytes(16));
+  $_SESSION["nocsrftoken"] = $rand;
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Add Post-SecAD</title>
+</head>
+<body>
+      	<h1>Add Post</h1>
+<?php
+
+  echo "Current time: " . date("Y-m-d h:i:sa")
+?>
+          <form action="addpost.php" method="POST" class="post addition">
+                Title:<input type="text" class="text_field" name="title"  /> 
+                <br>
+                Message: <textarea name="message" class="text_field" cols="80" rows="5" required placeholder="message here">
+       </textarea><br/>
+
+                 <br>
+
+                <button class="button" type="submit">
+                  Add Post
+                </button>
+
+                <input type="hidden" name="nocsrftoken" value="<?php echo $rand; ?>" />
+
+          </form>
+
+          <a href="index.php">Home Page</a>
+
+</body>
+</html>
+
+## /del.php
+
+<?php 
+
+  
+   $rand = bin2hex(openssl_random_pseudo_bytes(16));
+  $_SESSION["nocsrf"] = $rand;
+
+?>
+   <form action="index.php" method="POST" enctype="multipart/form-data">
+   <input type ="hidden" name= "id" value = "<?php echo htmlentities($_GET['id']);?>" />
+     <input type ="hidden" name= "nocsrf" value = "<?php echo $rand ?>" />
+    <input type="submit" name="Are you sure delete" value="delete">
+
+  </form>
+
+
+## /edit.php
+
+<?php
+  require "session_auth.php";
+  require 'database.php';
+
+  $nocsrftoken = $_POST["nocsrftoken"]; 
+
+  if(!isset($nocsrftoken) or ($nocsrftoken!=$_SESSION["nocsrftoken"])){
+    echo "<script>alert('Cross-site request forgery is detected');</script>";
+    header("Refresh:0; url=logout.php");
+    die();
+  }
+    $nocsrftoken = $_POST["nocsrftoken"]; 
+
+  /*if(!isset($nocsrftoken) or ($nocsrftoken!=$_SESSION['nocsrftoken'])){
+    echo "<script>alert('Cross-site request forgery is detected');</script>";
+    header("Refresh:0; url=logout.php");
+    die();
+  }*/
+
+  if (isset($_POST["title"]) AND isset($_POST["message"])) {
+    if (empty($_POST["title"]) OR empty($_POST["message"])){
+      echo "<script>alert('INPUT MISSING');</script>";
+      header("Refresh:0;url=index.php");
+      die();
+    }
+    $id=sanitize_input($_POST["id"]);  
+    $title=sanitize_input($_POST["title"]);
+    $message=sanitize_input($_POST["message"]);
+
+      if (editPost($id,$title,$message)) {
+        header("Refresh:0;url=editform.php?id=$id");
+       die;
+        }else{
+          echo "<h4>Error: Failure to Create Post.</h4>";
+        }
+  }else{
+    echo "No provided title and message to post.";
+    //header("Refresh:0;url=index.php");
+    die();
+  }
+
+?>
+<a href="index.php">Home</a> | <a href="logout.php">Logout</a>
+
+## /editform.php
+
+<?php 
+  require "database.php";
+  require "session_auth.php";
+  $id =NULL;
+  if(isset($_GET['id'])){
+    $id =intval($_GET['id']);
+    list($title,$text,$name,$date) = getPost(intval($_GET['id']));
+  }
+  $rand=bin2hex(openssl_random_pseudo_bytes(16));
+  $_SESSION["nocsrftoken"] = $rand;
+?>
+  
+  <form action="edit.php" method="POST" class ="post edit">
+    Title: 
+    <input type="text" class="text_field" name="title" value="<?php echo htmlentities($title); ?>" /> <br>
+    Text: 
+      <textarea name="message" cols="80" rows="5">
+        <?php echo htmlentities($text); ?> 
+       </textarea><br/>
+
+    <button class="button" type="submit">
+      Update
+    </button>
+      <input type="hidden" name="nocsrftoken" value="<?php echo $rand; ?>" />
+     <input type ="hidden" name= "id" value = "<?php echo $id ?>" />
+  </form>
+           
+
+  <a href="index.php">Home Page</a>
+
+## /post.php
+
+  <?php 
+	require "database.php";
+	renderPost(intval($_GET['id']));
+	
+	?>
+      <form method="POST" action="post_comment.php"> 
+        Author: <input type="text" name="author" / ><br/>
+        Text: <textarea name="text" cols="80" rows="5">
+        </textarea><br/>
+        <input type="hidden" name="id" value="<?php echo htmlentities($_GET['id']); ?>" />
+        <input type="submit" name="submit" / >
+      </form> 
+	<?php renderAllComments(intval($_GET['id'])); ?>
+	<a href="index.php">home</a>
+<a href="logout.php">logout</a>
+
+## /post_comment.php
+
+<?php 
+	require "database.php";
+	$author = sanitize_input($_POST['author']);
+	$text = sanitize_input($_POST['text']);
+	addComment(sanitize_input(intval($_POST['id'])),$author,$text);
+ 	 header("Location: post.php?id=".intval($_POST['id']));
+ 	 die();
+	?>
+
+
+## /style.css
+
+@import url('https://fonts.googleapis.com/css?family=Poppins:400,500,600,700&display=swap');
+*{
+  	margin: 0;
+ 	padding: 0;
+  	box-sizing: border-box;
+ 	font-family: 'Poppins', sans-serif;
+}
+body{
+  	height: 100vh;
+  	display: flex;
+  	align-items: center;
+  	justify-content: center;
+  	background: linear-gradient(135deg,#71b7e6,#9b59b6);
+}
+.container{
+  	position: relative;
+  	max-width: 700px;
+  	width: 100%;
+  	background: #fff;
+  	padding: 25px;
+  	border-radius: 6px;
+  	box-shadow: 0 5px 10px rgba(0,0,0,0.2);
+}
+
+.container h2{
+  	position: relative;
+  	font-size: 30px;
+  	font-weight: 600;
+  	color: #333;
+}
+.container h2::before{
+  	content: '';
+  	position: absolute;
+ 	left: 0;
+ 	bottom: 0;
+ 	height: 3px;
+  	width: 28px;
+  	border-radius: 12px;
+  	background: linear-gradient(135deg,#71b7e6,#9b59b6);
+}
+.container form .user-details{
+  	display: flex;
+  	flex-wrap: wrap;
+  	justify-content: space-between;
+
+}
+form .user-details .input-box{
+  	margin-bottom: 15px;
+  	width: calc(100% / 2 - 20px);
+}
+
+.user-details .input-box .details{
+  	display: block;
+  	font-weight: 500;
+  	margin-bottom: 5px;
+}
+
+.user-details .input-box input{
+	height: 45px;
+	width: 100%;
+	outline: none;
+	border-radius: 5px;
+	border: 1px solid #ccc;
+	padding-left: 15px;
+	font-size: 16px;
+	border-bottom-width: 2px;
+	transition: all 0.3s ease;
+}
+
+.user-details .input-box input:focus,
+.user-details .input-box input:valid{
+	border-color: #9b59b6;
+
+}
+
+form .button{
+ 	height: 45px;
+ 	margin: 45px 0;
+}
+
+form .button input{
+	height: 100%;
+	width: 100%;
+	outline: none;
+	color: #fff;
+	border: none;
+	font-size: 18px;
+	font-weight: 500;
+	border-radius: 5px;
+	letter-spacing: 1px;
+	background: linear-gradient(135deg,#71b7e6,#9b59b6);
+}
+
+form .button input:hover{
+	background: linear-gradient(135deg,#71b7e6,#9b59b6);
+}
+
+@media (max-width: 584px){
+	.container{
+		max-width: 100%;
+	}
+	form .user-details .input-box{
+		margin-bottom: 15px;
+		width: 100%;
+	}
+
+	.container form .user-details{
+		max-height: 300px;
+		overflow-y: scroll;
+	}
+	.user-details::-webkit-scrollbar{
+		width: 0;
+	}
+}
+
+## /style1.css
+
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@200;300;400;500;600;700&display=swap');
+*{
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Poppins', sans-serif;
+}
+html,body{
+  display: grid;
+  height: 100%;
+  width: 100%;
+  place-items: center;
+  background: #f2f2f2;
+  /* background: linear-gradient(-135deg, #c850c0, #4158d0); */
+}
+::selection{
+  background: #4158d0;
+  color: #fff;
+}
+.wrapper{
+  width: 380px;
+  background: #fff;
+  border-radius: 15px;
+  box-shadow: 0px 15px 20px rgba(0,0,0,0.1);
+}
+.wrapper .time{
+  color: #262626;
+  font-size: 15px;
+  margin-top: 20px;
+  text-align: center;
+}
+.wrapper .title{
+  font-size: 35px;
+  font-weight: 600;
+  text-align: center;
+  line-height: 100px;
+  color: #fff;
+  user-select: none;
+  border-radius: 15px 15px 0 0;
+  background: linear-gradient(-135deg, #c850c0, #4158d0);
+}
+.wrapper form{
+  padding: 10px 30px 50px 30px;
+}
+.wrapper form .field{
+  height: 50px;
+  width: 100%;
+  margin-top: 20px;
+  position: relative;
+}
+.wrapper form .field input{
+  height: 100%;
+  width: 100%;
+  outline: none;
+  font-size: 17px;
+  padding-left: 20px;
+  border: 1px solid lightgrey;
+  border-radius: 25px;
+  transition: all 0.3s ease;
+}
+.wrapper form .field input:focus,
+form .field input:valid{
+  border-color: #4158d0;
+}
+
+form .field input[type="submit"]{
+  color: #fff;
+  border: none;
+  padding-left: 0;
+  margin-top: -10px;
+  font-size: 20px;
+  font-weight: 500;
+  cursor: pointer;
+  background: linear-gradient(-135deg, #c850c0, #4158d0);
+  transition: all 0.3s ease;
+}
+form .field input[type="submit"]:active{
+  transform: scale(0.95);
+}
+form .signup-link{
+  color: #262626;
+  margin-top: 20px;
+  text-align: center;
+}
+form .pass-link a,
+form .signup-link a{
+  color: #4158d0;
+  text-decoration: none;
+}
+form .pass-link a:hover,
+form .signup-link a:hover{
+  text-decoration: underline;
+}
+
+## /admin/active.php
+
+<?php
+	require "session_auth.php";
+	require 'database.php';
+
+	$user= $_POST["username"]; //$_REQUEST["username"];
+	$act = $_POST["actvalue"];
+	$nocsrftoken = $_POST["nocrsftoken"]; 
+
+	if(!isset($nocsrftoken) or ($nocsrftoken!=$_SESSION['nocsrftoken'])){
+		echo "<script>alert('Cross-site request forgery is detected');</script>";
+		header("Refresh:0; url=logout.php");
+		die();
+	}
+
+	if (isset($user) or isset($act)) {
+    	if (activation($user,$act)) {
+    		echo "<script>alert('The profile has been updated.');</script>";
+    		header("Refresh:0; url=viewusers.php");
+       	}else{
+       		echo "<script>alert('Error: Cannot update the profile.');</script>";
+       		header("Refresh:0; url=viewusers.php");
+       		die();
+        }
+	}else{
+		echo "<script>alert('Invalid info!!');</script>";
+		header("Refresh:0; url=viewusers.php");
+		exit();
+	}
+
+?>
+
+## /adminform.css
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@200;300;400;500;600;700&display=swap');
+*{
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Poppins', sans-serif;
+}
+html,body{
+  display: grid;
+  height: 100%;
+  width: 100%;
+  place-items: center;
+  background: #f2f2f2;
+  /* background: linear-gradient(-135deg, #c850c0, #4158d0); */
+}
+::selection{
+  background: #4158d0;
+  color: #fff;
+}
+.wrapper{
+  width: 380px;
+  background: #fff;
+  border-radius: 15px;
+  box-shadow: 0px 15px 20px rgba(0,0,0,0.1);
+}
+.wrapper .time{
+  color: #262626;
+  font-size: 15px;
+  margin-top: 20px;
+  text-align: center;
+}
+.wrapper .title{
+  font-size: 35px;
+  font-weight: 600;
+  text-align: center;
+  line-height: 100px;
+  color: #fff;
+  user-select: none;
+  border-radius: 15px 15px 0 0;
+  background: linear-gradient(-135deg, #c850c0, #4158d0);
+}
+.wrapper form{
+  padding: 10px 30px 50px 30px;
+}
+.wrapper form .field{
+  height: 50px;
+  width: 100%;
+  margin-top: 20px;
+  position: relative;
+}
+.wrapper form .field input{
+  height: 100%;
+  width: 100%;
+  outline: none;
+  font-size: 17px;
+  padding-left: 20px;
+  border: 1px solid lightgrey;
+  border-radius: 25px;
+  transition: all 0.3s ease;
+}
+.wrapper form .field input:focus,
+form .field input:valid{
+  border-color: #4158d0;
+}
+
+form .field input[type="submit"]{
+  color: #fff;
+  border: none;
+  padding-left: 0;
+  margin-top: -10px;
+  font-size: 20px;
+  font-weight: 500;
+  cursor: pointer;
+  background: linear-gradient(-135deg, #c850c0, #4158d0);
+  transition: all 0.3s ease;
+}
+form .field input[type="submit"]:active{
+  transform: scale(0.95);
+}
+
+## /admin/database.php
+
+<?php
+    $mysqli = new mysqli('localhost','team5','team5','secad_team5');
+    if($mysqli->connect_errno){
+         printf("Database connection failed: %s\n", $mysqli->connect_error);
+         exit();
+    }
+
+    function activation($username, $active){
+    	global $mysqli;
+    	$prepared_sql = "UPDATE users SET active=? WHERE username = ?";
+	    echo "DEBUG>prepared_sql= $prepared_sql\n";
+
+        if(!$stmt = $mysqli ->prepare($prepared_sql)) return FALSE;
+        $stmt->bind_param("ss",$active,$username);
+        if(!$stmt->execute()) return FALSE;
+        return TRUE;
+    }
+
+?>
+
+## /admin/form.php
+
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<?php
+  session_start();
+  session_destroy();
+?>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Login page-Admin</title>
+  <link rel="stylesheet" href="adminform.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  </head>
+  <body>
+    <div class="wrapper">
+      <div class="title">Admin Login </div>
+        <div class="time">
+          <?php
+            echo "Current time: " . date("Y-m-d h:i:sa")
+          ?>
+        </div>
+          <form action="index.php" method="POST" class="form login">
+            <div class="field">   
+              <input type="text" class="text_field" name="username" required
+              pattern="[A-Za-z]{3,20}"
+              title="Please enter a valid username" 
+              placeholder="Your username"
+              onchange="this.setCustomValidity(this.validity.patternMismatch?this.title: '');" /> 
+              <br>
+            </div>
+            <div class="field">
+              <input type="password" class="text_field" name="password" required
+              pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&])[\w!@#$%^&]{8,}$"
+              placeholder="Your password"
+              title="Password needs at least 8 characters with 1 special symbol !@#$%^& 1 number, 1 lowercase, and 1 UPPERCASE"
+              onchange="this.setCustomValidity(this.validity.patternMismatch?this.title: '');"/>
+              <br>
+            </div>
+            <div class="field">
+              <input type="submit" value="Login">
+            </div>
+          </form>
+        </div>
+  </body>
+</html>
+
+## /admin/index.php
+
+<?php
+    $lifetime = 15 * 60; //15 minutes
+    $path = "/"; // "/" . Need to change this for the team project
+    $domain = "secad-team5.minifacebook.com"; //IP address or host name. Need to change this for the team project
+    $secure = TRUE;
+    $httponly = TRUE;
+    session_set_cookie_params($lifetime, $path, $domain, $secure, $httponly);
+    session_start();
+    $rand = bin2hex(openssl_random_pseudo_bytes(16));
+
+    $mysqli = new mysqli('localhost','team5','team5','secad_team5');
+    if($mysqli->connect_error){
+         printf("database connection failed: %s\n",
+         $mysqli->connect_error);
+         exit();
+    }
+
+    if (isset($_POST["username"]) and isset($_POST["password"]) ){
+      if (empty($_POST["username"]) OR empty($_POST["password"])) {
+        echo "<script>alert('INPUT MISSING');</script>";
+        session_destroy();
+        header("Refresh:0;url=form.php");
+        die;
+      } 
+
+      $username = sanitize_input($_POST["username"]);
+      if (!preg_match("/[A-Za-z]{3,20}/",$username)) {
+        regeXCheckFail($username);
+      }
+
+      $password=sanitize_input($_POST["password"]);
+      if (!preg_match("/^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&])[\w!@#$%^&]{8,}$/",$password)) {
+        regeXCheckFail();
+      }
+
+
+      if(securechecklogin($_POST["username"],$_POST["password"])){
+        $_SESSION["logged"] = TRUE;
+        $_SESSION["username"] = $_POST["username"];
+        $_SESSION["browser"] = $_SERVER["HTTP_USER_AGENT"];
+        $_SESSION["nocsrftoken"] = $rand;
+
+        // Session variable for superuser
+        $_SESSION["role"] = "superuser";
+
+      }else{
+        echo "<script>alert('Invalid username/password.');</script>";
+        //session_destroy();
+        //header("Refresh:0; url=form.php");
+		    //die(); 
+	    }
+    }
+
+    if (!isset($_SESSION["logged"]) or $_SESSION["logged"] !=TRUE ){
+      echo "<script>alert('Please login first.');</script>";
+      header("Refresh:0; url=form.php");
+      die(); 
+    }
+
+    if ($_SESSION["browser"] != $_SERVER["HTTP_USER_AGENT"]){
+      echo "<script>alert('Session hijacking is detected!');</script>";
+      session_destroy();
+      header("Refresh:0; url=form.php");
+      die(); 
+    }
+
+    function regeXCheckFail(){
+      echo "<script>alert('INPUT data isnt in correct format.Redirecting now.');</script>";
+      header("Refresh:0;url=form.php");
+      die;
+    }
+
+    function sanitize_input($data){
+      $data = trim($data);
+      $data = stripslashes($data);
+      $data = htmlspecialchars($data);
+      return $data;
+    }
+?>
+<h2> Welcome <?php echo htmlentities($_SESSION['username']); ?> !</h2> 
+<a href="viewusers.php">View Users</a>
+<a href="logout.php">logout</a>
+<?php
+
+function securechecklogin($username, $password){
+    global $mysqli;
+    $prepared_sql = "SELECT * FROM superusers WHERE username= ? AND password=password(?);";
+    if(!$stmt = $mysqli->prepare($prepared_sql)){
+       echo "Prepared Statement Error";
+    }
+    $stmt->bind_param("ss", $username,$password);
+    if(!$stmt->execute())  echo "Execute Error";
+    if(!$stmt->store_result()) echo "Store_result error";
+    $result = $stmt;
+    if($result->num_rows ==1)
+      return TRUE;
+    echo "$username, $password";
+    return FALSE;
+}
+
+?>
+
+## /admin/logout.php
+
+<?php
+	session_start();
+	session_destroy();
+?>
+<p> You are logout! </p>
+
+<a href="form.php">Login again</a>
+
+## /admin/session_auth.php
+
+<?php
+
+    $lifetime = 15 * 60; //15 minutes
+    $path = "/"; 
+    $domain = "secad-team5.minifacebook.com"; 
+    $secure = TRUE;
+    $httponly = TRUE;
+    session_set_cookie_params($lifetime, $path, $domain, $secure, $httponly);
+    session_start();
+
+    $role = $_SESSION['role'];
+    if($role != "superuser"){
+        echo "<script>alert('You are not a superuser');</script>";
+        session_destroy();
+        header("Refresh:0; url=form.php");
+        die();
+    }
+
+    if (isset($_POST["username"]) and isset($_POST["password"]) ){
+        if(securechecklogin($_POST["username"],$_POST["password"])){
+
+            $_SESSION["logged"] = TRUE;
+            $_SESSION["username"] = $_POST["username"];
+            $_SESSION["browser"] = $_SERVER["HTTP_USER_AGENT"];
+
+         }else{
+            echo "<script>alert('Invalid username/password.');</script>";
+            session_destroy();
+            header("Refresh:0; url=form.php");
+            die(); 
+         }
+    }
+
+    //check the session
+    if( !isset($_SESSION["logged"]) or $_SESSION["logged"] != TRUE){
+  	    echo "<script>alert('You have to login first!');</script>";
+    	session_destroy();
+    	header("Refresh:0; url=form.php");
+    	die();
+    }
+
+    if( $_SESSION["browser"] != $_SERVER["HTTP_USER_AGENT"]){
+    	//it is a session hijacking attack since it comes from a different browser
+    	echo "<script>alert('Session hijacking attack is detected!');</script>";
+        //echo $_SESSION["browser"];
+        //echo " , ";
+        //echo $_SERVER["HTTP_USER_AGENT"];
+    	session_destroy();
+    	header("Refresh:0; url=form.php");
+    	die();
+    }
+?>
+
+## /admin/viewusers.php
+
+<!DOCTYPE html>
+<?php
+    require "session_auth.php";
+    $nocsrftoken = $_SESSION["nocsrftoken"];
+    $rand = bin2hex(openssl_random_pseudo_bytes(16));
+
+    $mysqli = new mysqli('localhost','team5','team5','secad_team5');
+    if($mysqli->connect_error){
+      printf("database connection failed: %s\n",
+      $mysqli->connect_error);
+      exit();
+    }
+?>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>View Users-Admin</title>
+</head>
+<body>
+  <h2> Welcome <?php echo htmlentities($_SESSION["username"]); ?> </h2>
+<?php
+  //some code here
+  echo "Current time: " . date("Y-m-d h:i:sa");
+?>
+    <table id="users" style="width:40%" align:"center">
+      <tr><th>Current Users</th></tr>
+        <?php
+          $_SESSION["nocsrftoken"] = $rand;
+          global $mysqli;
+          $prepared_sql = "SELECT username, active FROM users;";
+          if(!$stmt = $mysqli->prepare($prepared_sql)){
+             echo "Prepared Statement Error";
+          }
+          if(!$stmt->execute()){
+            echo "Execute stmt error";
+          }
+          $username=NULL;
+          $active=NULL;
+          if(!$stmt->bind_result($username,$active)) echo "Binding Failed";
+          while($stmt->fetch()){
+            if($active == 1){
+              $flag = 0;
+        ?>
+              <tr><td><?php echo htmlentities($username) ?></td>
+                  <td><form action="active.php" method="POST" class="active">
+                      <button class="button" type="submit">Deactivate</button>
+                      <input type="hidden" name="username" value="<?php echo $username; ?>" />
+                      <input type="hidden" name="actvalue" value="<?php echo $flag; ?>" />
+                      <input type="hidden" name="nocrsftoken" value="<?php echo $rand; ?>" />
+                    </form>
+                  </td>
+                </tr>
+        <?php
+            }else{
+              $flag = 1;
+        ?>
+              <tr><td><?php echo htmlentities($username) ?></td>
+                  <td><form action="active.php" method="POST" class="active">
+                      <button class="button" type="submit">Activate</button>
+                      <input type="hidden" name="username" value="<?php echo $username; ?>" />
+                      <input type="hidden" name="actvalue" value="<?php echo $flag; ?>" />
+                      <input type="hidden" name="nocrsftoken" value="<?php echo $rand; ?>" />
+                    </form>
+                  </td>
+              </tr>
+        <?php     
+            }
+          }
+        ?>
+    </table>
+    <a href="index.php">Home</a>
+    <a href="logout.php">logout</a>
+</body>
+</html>
