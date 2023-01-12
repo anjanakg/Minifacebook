@@ -131,4 +131,6 @@ Figure 10: Superusers can activate and deactivate any user account. After deacti
 
 Even though web interface of our minifacebook application is not attractive, we achieved all the main requirements which are expected from this project. However, we did not get enough time to implement the chat integration. Our application is achieving all the required security measures. So, we can say it as we are successful in our minifacebook application development. We will design the web interface to our minifacebook application in near future. 
 
-This is a team project, we did as the final project for our Secure Application Development Class. I will share the all credits with my teammate Joshua Cowden 
+This is a team project, we did as the final project for our Secure Application Development Class. I will share the all credits with my teammate 
+[Joshua Cowden](https://www.linkedin.com/in/joshua-cowden-59957819b/)
+.
