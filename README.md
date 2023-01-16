@@ -13,7 +13,7 @@ During the implementation our focus was to develop a defensive and robust progra
 We followed all instructions given by the professor and developed our project step by step. 
 First, we created SSL keys for our team repository and configured HTTPS in Apache2 with the new generated keys. So, we ensured it as all data transmission of our application is encrypted. 
 
-![Scheme](screenshots/HTTPS_configuration.jpg)  
+![Scheme](screenshots/Untitled.jpg)  
 
 Figure 1: HTTPS data transactions
 
